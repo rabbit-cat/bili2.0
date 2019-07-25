@@ -31,7 +31,8 @@ class PrintGiftbagsTask(ForcedTask):
     async def work(user):
         gift_bags = await UtilsTask.fetch_giftbags(user)
         yield '查询可用礼物'
-        for _, _, gift_num, gift_name, left_days, _ in gift_bags:
+        for _, _, gift_num, gift_name, left_time in gift_bags:
+            left_days = '+∞' if left_time is None else str(round(left_time / 86400, 2))
             yield f'{gift_name:^3}X{gift_num:^4} (在{left_days:^6}天后过期)'
 
 
@@ -179,8 +180,7 @@ class PrintMainBiliUserInfoTask(ForcedTask):
         if next_exp == -1:
             next_exp = current_exp
         yield f'主站等级值 {level_info["current_level"]}'
-        yield f'主站经验值 {current_exp}/{next_exp}'
-        yield utils.print_progress(current_exp, next_exp)
+        yield f'主站经验值 {utils.print_progress(current_exp, next_exp)}'
 
 
 class PrintLiveBiliUserInfoTask(ForcedTask):
@@ -197,40 +197,41 @@ class PrintLiveBiliUserInfoTask(ForcedTask):
         json_rsp_ios = await user.req_s(UtilsReq.fetch_livebili_userinfo_ios, user)
         if not json_rsp_pc['code'] and not json_rsp_ios['code']:
             gold_ios = json_rsp_ios['data']['gold']
+
             data = json_rsp_pc['data']
-            userInfo = data['userInfo']
-            userCoinIfo = data['userCoinIfo']
-            uname = userInfo['uname']
+            user_info = data['userInfo']
+            user_coin_info = data['userCoinIfo']
+
+            uname = user_info['uname']
             achieve = data['achieves']
-            user_level = userCoinIfo['user_level']
-            silver = userCoinIfo['silver']
-            gold = userCoinIfo['gold']
-            identification = bool(userInfo['identification'])
-            mobile_verify = bool(userInfo['mobile_verify'])
-            user_next_level = userCoinIfo['user_next_level']
-            user_intimacy = userCoinIfo['user_intimacy']
-            user_next_intimacy = userCoinIfo['user_next_intimacy']
-            user_level_rank = userCoinIfo['user_level_rank']
-            billCoin = userCoinIfo['coins']
-            bili_coins = userCoinIfo['bili_coins']
-            is_svip = bool(userCoinIfo['svip'])
-            svip_time = userCoinIfo['svip_time']
-            is_vip = bool(userCoinIfo['vip'])
-            vip_time = userCoinIfo['vip_time']
+            user_level = user_coin_info['user_level']
+            silver = user_coin_info['silver']
+            gold = user_coin_info['gold']
+            identification = bool(user_info['identification'])
+            mobile_verify = bool(user_info['mobile_verify'])
+            user_next_level = user_coin_info['user_next_level']
+            user_intimacy = user_coin_info['user_intimacy']
+            user_next_intimacy = user_coin_info['user_next_intimacy']
+            user_level_rank = user_coin_info['user_level_rank']
+            coins = user_coin_info['coins']
+            bili_coins = user_coin_info['bili_coins']
+
+            is_svip = bool(user_coin_info['svip'])
+            svip_time = user_coin_info['svip_time']
+            is_vip = bool(user_coin_info['vip'])
+            vip_time = user_coin_info['vip_time']
             yield f'用户名 {uname}'
             yield f'手机认证状况 {mobile_verify} | 实名认证状况 {identification}'
             yield f'月费老爷 {str(is_vip):^5} | 过期时间 {vip_time}'
             yield f'年费老爷 {str(is_svip):^5} | 过期时间 {svip_time}'
             yield f'银瓜子 {silver}'
             yield f'通用金瓜子 {gold}'
-            yield f'ios可用金瓜子 {gold_ios}'
-            yield f'硬币数 {billCoin}'
+            yield f'iOS可用金瓜子 {gold_ios}'
+            yield f'硬币数 {coins}'
             yield f'Ｂ币数 {bili_coins}'
             yield f'成就值 {achieve}'
-            yield f'等级值 {user_level}———>{user_next_level}'
-            yield f'经验值 {user_intimacy}'
-            yield f'剩余值 {user_next_intimacy - user_intimacy}'
-            yield utils.print_progress(user_intimacy, user_next_intimacy)
+            yield f'等级值 {user_level}------->{user_next_level}'
+            yield f'经验值 {utils.print_progress(user_intimacy, user_next_intimacy)}'
             yield f'等级榜 {user_level_rank}'
 
 
