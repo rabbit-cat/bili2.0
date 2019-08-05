@@ -1,6 +1,7 @@
 # 不具有任何意义,仅仅是常见func
 
 from random import randint
+
 from bili_global import API_LIVE
 import utils
 from json_rsp_ctrl import ZERO_ONLY_CTRL
@@ -100,12 +101,14 @@ class UtilsReq:
     @staticmethod
     async def fetch_medals(user):
         url = f'{API_LIVE}/i/api/medal?page=1&pageSize=50'  # max 25，所以黑科技一般能用（233）
+        # {"code":510001,"msg":"用户不存在","message":"用户不存在","data":[]}
         json_rsp = await user.bililive_session.request_json('GET', url, headers=user.dict_bili['pcheaders'])
         return json_rsp
         
     @staticmethod
     async def fetch_bilimain_tasks(user):
         url = 'https://account.bilibili.com/home/reward'
+        # {"code":-101}
         json_rsp = await user.other_session.request_json('GET', url, headers=user.dict_bili['pcheaders'])
         return json_rsp
         
@@ -119,6 +122,7 @@ class UtilsReq:
     @staticmethod
     async def fetch_bilimain_userinfo(user):
         url = 'https://account.bilibili.com/home/userInfo'
+        # {"code":-101}
         json_rsp = await user.other_session.request_json('GET', url, headers=user.dict_bili['pcheaders'])
         return json_rsp
     
@@ -139,6 +143,7 @@ class UtilsReq:
     @staticmethod
     async def fetch_capsule_info(user):
         url = f'{API_LIVE}/xlive/web-ucenter/v1/capsule/get_detail?from=web'
+        # {"code":-101,"message":"账号未登录","ttl":1}
         json_rsp = await user.bililive_session.request_json('GET', url, headers=user.dict_bili['pcheaders'])
         return json_rsp
 
