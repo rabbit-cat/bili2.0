@@ -36,6 +36,13 @@ class UtilsReq:
         return response
         
     @staticmethod
+    async def init_room_ex(user, roomid,**kwargs):
+        url = f"http://bilipush.1024dream.net:5001/room/v1/Room/room_init?id={roomid}"
+        # {"code":60004,"msg":"房间不存在","message":"房间不存在","data":[]}
+        response = await user.bililive_session.request_json('GET', url,**kwargs)
+        return response
+
+    @staticmethod
     async def get_rooms_by_area(user, areaid):
         url = f'{API_LIVE}/room/v3/area/getRoomList?parent_area_id={areaid}&sort_type=online&page_size=10'
         json_rsp = await user.bililive_session.request_json('GET', url, ctrl=ZERO_ONLY_CTRL)
