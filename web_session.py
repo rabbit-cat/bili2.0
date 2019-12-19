@@ -29,6 +29,20 @@ class WebSession:
     async def __receive_bytes(rsp: aiohttp.ClientResponse):
         return await rsp.read()
 
+    async def once_req(self, method, url, **kwargs):
+        return await self.__once_req(self.__receive_json, method, url, **kwargs)
+        
+    async def __once_req(self, parse_rsp, method, url, **kwargs):
+        try:
+            async with self.var_session.request(method, url, **kwargs) as rsp:
+                    if rsp.status == 200:
+                        body = await parse_rsp(rsp)
+                        if body:
+                            return body
+                        return {'code':-1}
+        except:
+            return {'code':-1}
+
     # 基本就是通用的 request
     async def __orig_req(self, parse_rsp, method, url, **kwargs):
         i = 0
