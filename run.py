@@ -43,6 +43,7 @@ loop = asyncio.get_event_loop()
 
 dict_user = conf_loader.read_user()
 dict_bili = conf_loader.read_bili()
+dict_bilitv = conf_loader.read_bilitv()
 dict_color = conf_loader.read_color()
 dict_ctrl = conf_loader.read_ctrl()
 dict_task = conf_loader.read_task()
@@ -73,6 +74,7 @@ for user_info in dict_user['users']:
                                task_ctrl=task_control,
                                task_arrangement=task_arrangement,
                                dict_bili=dict_bili,
+                               dict_bilitv=dict_bilitv,
                                force_sleep=bili_sched.force_sleep))
     users.append(user)
 notifier.init(users=users)
