@@ -19,12 +19,12 @@ class User:
 
         'bililive_session', 'login_session', 'other_session',
 
-        'dict_bili', 'app_params', 'list_delay', 'repost_del_lock',
+        'dict_bili', 'dict_bilitv', 'app_params', 'list_delay', 'repost_del_lock',
         'dyn_lottery_friends', 'storm_lock', 'recording_tasks',
     )
 
     def __init__(
-            self, dict_user: dict, task_ctrl: dict, task_arrangement: dict, dict_bili: dict, force_sleep: callable):
+            self, dict_user: dict, task_ctrl: dict, task_arrangement: dict, dict_bili: dict, dict_bilitv: dict,force_sleep: Callable):
         self.id = next(self._ids)
         self.force_sleep = force_sleep
         self.name = dict_user['username']
@@ -41,6 +41,7 @@ class User:
 
         # 每个user里面都分享了同一个dict，必须要隔离，否则更新cookie这些的时候会互相覆盖
         self.dict_bili = copy.deepcopy(dict_bili)
+        self.dict_bilitv = copy.deepcopy(dict_bilitv)
         self.app_params = f'actionKey={dict_bili["actionKey"]}&' \
             f'appkey={dict_bili["appkey"]}&build={dict_bili["build"]}&' \
             f'device={dict_bili["device"]}&mobi_app={dict_bili["mobi_app"]}&' \
@@ -82,7 +83,11 @@ class User:
             *objects,
             **kwargs,
             extra_info=f'用户id:{self.id} 名字:{self.alias}')
-
+            
+    def calc_sign_tv(self, text):
+        text = f'{text}{self.dict_bilitv["app_secret"]}'
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+        
     def calc_sign(self, text):
         text = f'{text}{self.dict_bili["app_secret"]}'
         return hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -115,9 +120,6 @@ class User:
             except exceptions.ForbiddenError:
                 await asyncio.shield(self.force_sleep(3600))  # bili_sched.force_sleep
                 await asyncio.sleep(3600)  # 有的function不受sched控制，主动sleep即可，不cancel原因是怕堵死一些协程
-
-    async def exec_func(self, func: Callable, *args, **kwargs):
-        return await func(self, *args, **kwargs)
 
     def fall_in_jail(self):
         self.is_in_jail = True

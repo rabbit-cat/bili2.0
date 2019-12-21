@@ -60,14 +60,63 @@ class LoginTask(ForcedTask):
             user.update_login_data(login_data)
             return True
         return False
-
     @staticmethod
     async def login(user):
         name = user.name
         password = user.password
+        json_rsp = await LoginReq.fetch_key_tv(user)
+        data = json_rsp['data']
+        print(json_rsp)
+        pubkey = rsa.PublicKey.load_pkcs1_openssl_pem(data['key'])
+        crypto_password = base64.b64encode(
+            rsa.encrypt((data['hash'] + password).encode('utf-8'), pubkey)
+        )
+        url_password = parse.quote_plus(crypto_password)
+        url_name = parse.quote_plus(name)
+        
+        json_rsp = await LoginReq.login_tv(user, url_name, url_password)
+        while json_rsp['code'] == -105:
+            binary_rsp = await LoginReq.fetch_capcha(user)
+            captcha = await LoginReq.cnn_captcha(user, binary_rsp)
+            json_rsp = await LoginReq.login_tv(user, url_name, url_password, captcha)
+        if not json_rsp['code'] and 'data' in json_rsp:
+            data = json_rsp['data']
+            access_key = data['token_info']['access_token']
+            refresh_token = data['token_info']['refresh_token']
+            cookie_info = await LoginReq.access_token_2_cookies(user,access_key)            
+            list_cookies = [f'{k}={v}' for (k,v) in cookie_info.items()]
+            cookie = ';'.join(list_cookies)
+            login_data = {
+                'csrf': cookie_info['bili_jct'],
+                'access_key': access_key,
+                'refresh_token': refresh_token,
+                'cookie': cookie,
+                'uid': cookie_info['DedeUserID']
+                }
+            
+            user.update_login_data(login_data)
+            user.info('登陆成功')
+            return True
+        else:
+            login_data = {
+                'csrf': f'{json_rsp}',
+                'access_key': '',
+                'refresh_token': '',
+                'cookie': '',
+                'uid': 'NULL'
+                }
+            # print(dic_saved_session)
+            user.update_login_data(login_data)
+            user.info(f'登录失败,错误信息为:{json_rsp}')
+            return False
+
+    @staticmethod
+    async def login_app(user):
+        name = user.name
+        password = user.password
         json_rsp = await LoginReq.fetch_key(user)
         data = json_rsp['data']
-
+        print(json_rsp)
         pubkey = rsa.PublicKey.load_pkcs1_openssl_pem(data['key'])
         crypto_password = base64.b64encode(
             rsa.encrypt((data['hash'] + password).encode('utf-8'), pubkey)
@@ -76,6 +125,7 @@ class LoginTask(ForcedTask):
         url_name = parse.quote_plus(name)
         
         json_rsp = await LoginReq.login(user, url_name, url_password)
+        print(json_rsp)
         while json_rsp['code'] == -105:
             binary_rsp = await LoginReq.fetch_capcha(user)
             captcha = await LoginReq.cnn_captcha(user, binary_rsp)

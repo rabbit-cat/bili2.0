@@ -21,6 +21,7 @@ class ConfLoader:
         self.file_color = f'{path_conf}/color.toml'
         self.file_user = f'{path_conf}/user.toml'
         self.file_bili = f'{path_conf}/bili.toml'
+        self.file_bilitv = f'{path_conf}/bilitv.toml'
         self.file_ctrl = f'{path_conf}/ctrl.toml'
         self.file_task = f'{path_conf}/task.toml'
         
@@ -55,6 +56,9 @@ class ConfLoader:
     def read_bili(self):
         return self.toml_load(self.file_bili)
         
+    def read_bilitv(self):
+        return self.toml_load(self.file_bilitv)
+        
     def read_color(self):
         dict_color = self.toml_load(self.file_color)
         for i in dict_color.values():
@@ -82,6 +86,8 @@ var = ConfLoader()
 def write_user(dict_new, user_id):
     var.write_user(dict_new, user_id)
 
+def read_bilitv():
+    return var.read_bilitv()
         
 def read_bili():
     return var.read_bili()
