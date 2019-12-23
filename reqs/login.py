@@ -66,9 +66,7 @@ class LoginReq:
         sign = user.calc_sign_tv(temp_params)
         payload = f'{temp_params}&sign={sign}'
         url = f"https://passport.bilibili.com/api/login/sso?{payload}"
-        print(url)
-        response = requests.get(url, allow_redirects=False)        
-        print(response.cookies)
+        response = requests.get(url, allow_redirects=False)
         return response.cookies.get_dict(domain=".bilibili.com")
     @staticmethod
     async def is_token_usable(user):
