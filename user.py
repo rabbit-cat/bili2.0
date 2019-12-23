@@ -2,7 +2,7 @@ import copy
 import asyncio
 import hashlib
 from itertools import count
-from typing import Callable
+from typing import Callable, Optional
 
 import printer
 import conf_loader
@@ -15,12 +15,13 @@ class User:
     _ids = count(0)
     __slots__ = (
         'id', 'force_sleep', 'name', 'password', 'alias', 'task_ctrl',
-        'task_arrangement', 'is_log_in', 'is_in_jail',
+        'task_arrangement', 'is_in_jail',
 
         'bililive_session', 'login_session', 'other_session',
 
-        'dict_bili', 'dict_bilitv', 'app_params', 'list_delay', 'repost_del_lock',
+        'dict_bili', 'dict_bilitv','app_params', 'repost_del_lock',
         'dyn_lottery_friends', 'storm_lock', 'recording_tasks',
+        '_waiting_login', '_loop'
     )
 
     def __init__(
@@ -32,7 +33,6 @@ class User:
         self.alias = dict_user.get('alias', self.name)
         self.task_ctrl = task_ctrl
         self.task_arrangement = task_arrangement
-        self.is_log_in = True  # 登陆状态，cookie、token有效性
         self.is_in_jail = False  # 是否小黑屋
 
         self.bililive_session = WebSession()
@@ -42,12 +42,19 @@ class User:
         # 每个user里面都分享了同一个dict，必须要隔离，否则更新cookie这些的时候会互相覆盖
         self.dict_bili = copy.deepcopy(dict_bili)
         self.dict_bilitv = copy.deepcopy(dict_bilitv)
-        self.app_params = f'actionKey={dict_bili["actionKey"]}&' \
-            f'appkey={dict_bili["appkey"]}&build={dict_bili["build"]}&' \
-            f'device={dict_bili["device"]}&mobi_app={dict_bili["mobi_app"]}&' \
-            f'platform={dict_bili["platform"]}'
+        self.app_params = [
+            f'actionKey={dict_bili["actionKey"]}',
+            f'appkey={dict_bili["appkey"]}',
+            f'build={dict_bili["build"]}',
+            f'device={dict_bili["device"]}',
+            f'mobi_app={dict_bili["mobi_app"]}',
+            f'platform={dict_bili["platform"]}',
+        ]
         self.update_login_data(dict_user)
-        self.list_delay = []
+
+        self._waiting_login = None
+        self._loop = asyncio.get_event_loop()
+
         self.repost_del_lock = asyncio.Lock()  # 在follow与unfollow过程中必须保证安全(repost和del整个过程加锁)
         dyn_lottery_friends = [(str(uid), name) for uid, name in task_ctrl['dyn_lottery_friends'].items()]
         self.dyn_lottery_friends = dyn_lottery_friends  # list (uid, name)
@@ -91,35 +98,50 @@ class User:
     def calc_sign(self, text):
         text = f'{text}{self.dict_bili["app_secret"]}'
         return hashlib.md5(text.encode('utf-8')).hexdigest()
+        
+    def sort_and_sign(self, extra_params: Optional[list] = None) -> str:
+        if extra_params is None:
+            text = "&".join(self.app_params)
+        else:
+            text = "&".join(sorted(self.app_params+extra_params))
+        text_with_appsecret = f'{text}{self.dict_bili["app_secret"]}'
+        sign = hashlib.md5(text_with_appsecret.encode('utf-8')).hexdigest()
+        return f'{text}&sign={sign}'
+        
+    def sort_and_sign_tv(self, extra_params: Optional[list] = None) -> str:
+        if extra_params is None:
+            text = "&".join(self.app_params)
+        else:
+            text = "&".join(sorted(self.app_params+extra_params))
+        text_with_appsecret = f'{text}{self.dict_bilitv["app_secret"]}'
+        sign = hashlib.md5(text_with_appsecret.encode('utf-8')).hexdigest()
+        return f'{text}&sign={sign}'
 
-    # 保证在线
     async def req_s(self, func, *args):
         while True:
-            try:
-                rsp = await func(*args)
-                return rsp  # 如果正常，不用管是否登陆了(不少api不需要cookie)，直接return
-            except exceptions.LogoutError:
-                # 未登陆且未处理
-                if self.is_log_in:
-                    self.info(f'判定出现了登陆失败，且未处理')
-                    self.is_log_in = False
-                    # login
-                    await LoginTask.handle_login_status(self)
-                    print(self.list_delay)
-                    self.info(f'已经登陆了')
-                    self.is_log_in = True
-                    for future in self.list_delay:
-                        future.set_result(True)
-                    del self.list_delay[:]
-                # 未登陆，但已处理
-                else:
-                    future = asyncio.Future()
-                    self.list_delay.append(future)
-                    await future
-                    self.info(f'判定出现了登陆失败，已经处理')
-            except exceptions.ForbiddenError:
-                await asyncio.shield(self.force_sleep(3600))  # bili_sched.force_sleep
-                await asyncio.sleep(3600)  # 有的function不受sched控制，主动sleep即可，不cancel原因是怕堵死一些协程
+            if self._waiting_login is None:
+                try:
+                    return await func(*args)
+                except exceptions.LogoutError:  # logout
+                    if self._waiting_login is None:  # 当前没有处理的运行
+                        self.info('判定出现了登陆失败，且未处理')
+                        self._waiting_login = self._loop.create_future()
+                        try:
+                            await LoginTask.handle_login_status(self)
+                            self.info('已经登陆了')
+                        except asyncio.CancelledError:  # 登陆中取消，把waiting_login设置，否则以后的req会一直堵塞
+                            raise
+                        finally:
+                            self._waiting_login.set_result(-1)
+                            self._waiting_login = None
+                    else:  # 已有处理的运行了
+                        self.info('判定出现了登陆失败，已经处理')
+                        await self._waiting_login
+                except exceptions.ForbiddenError:
+                    await asyncio.shield(self.force_sleep(3600))  # bili_sched.force_sleep
+                    await asyncio.sleep(3600)  # 有的function不受sched控制，主动sleep即可，不cancel原因是怕堵死一些协程
+            else:
+                await self._waiting_login
 
     def fall_in_jail(self):
         self.is_in_jail = True
