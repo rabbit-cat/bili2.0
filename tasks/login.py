@@ -4,17 +4,17 @@ from urllib import parse
 import rsa
 
 from reqs.login import LoginReq
-from .task_func_decorator import normal
-from .base_class import ForcedTask
+from .base_class import Forced, Wait, Multi
 
 
-class LoginTask(ForcedTask):
+class LoginTask(Forced, Wait, Multi):
+    TASK_NAME = 'null'
+
     @staticmethod
     async def check(_):
         return (-2, None),
 
     @staticmethod
-    @normal
     async def work(user):
         # 搞两层的原因是normal这里catch了取消这里时，直接return，会导致user自己调用主动登陆功能失败
         await LoginTask.handle_login_status(user)
@@ -60,13 +60,18 @@ class LoginTask(ForcedTask):
             user.update_login_data(login_data)
             return True
         return False
+    
     @staticmethod
     async def login(user):
+        # 这里手动调整具体使用登陆的接口
+        return await LoginTask.login_tv(user)
+
+    @staticmethod
+    async def login_tv(user):
         name = user.name
         password = user.password
         json_rsp = await LoginReq.fetch_key_tv(user)
         data = json_rsp['data']
-        print(json_rsp)
         pubkey = rsa.PublicKey.load_pkcs1_openssl_pem(data['key'])
         crypto_password = base64.b64encode(
             rsa.encrypt((data['hash'] + password).encode('utf-8'), pubkey)
@@ -76,7 +81,7 @@ class LoginTask(ForcedTask):
         
         json_rsp = await LoginReq.login_tv(user, url_name, url_password)
         while json_rsp['code'] == -105:
-            binary_rsp = await LoginReq.fetch_capcha(user)
+            binary_rsp = await LoginReq.fetch_capcha_tv(user)
             captcha = await LoginReq.cnn_captcha(user, binary_rsp)
             json_rsp = await LoginReq.login_tv(user, url_name, url_password, captcha)
         if not json_rsp['code'] and 'data' in json_rsp:
@@ -116,7 +121,6 @@ class LoginTask(ForcedTask):
         password = user.password
         json_rsp = await LoginReq.fetch_key(user)
         data = json_rsp['data']
-        print(json_rsp)
         pubkey = rsa.PublicKey.load_pkcs1_openssl_pem(data['key'])
         crypto_password = base64.b64encode(
             rsa.encrypt((data['hash'] + password).encode('utf-8'), pubkey)
@@ -125,7 +129,6 @@ class LoginTask(ForcedTask):
         url_name = parse.quote_plus(name)
         
         json_rsp = await LoginReq.login(user, url_name, url_password)
-        print(json_rsp)
         while json_rsp['code'] == -105:
             binary_rsp = await LoginReq.fetch_capcha(user)
             captcha = await LoginReq.cnn_captcha(user, binary_rsp)
