@@ -56,6 +56,18 @@ class LoginReq:
         url = "https://passport.bilibili.com/captcha"
         binary_rsp = await user.login_session.request_binary('GET', url, ctrl=LOGIN_CTRL)
         return binary_rsp
+    
+    @staticmethod
+    async def fetch_capcha_tv(user):
+        headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36',
+            'Host': 'passport.snm0516.aisee.tv',
+            'cookie': "sid=hxt5szbb"
+        }
+        url = "https://passport.snm0516.aisee.tv/api/captcha?token=5598158bcd8511e2"
+        binary_rsp = await user.login_session.request_binary('GET', url,headers=headers)
+        return binary_rsp
 
     @staticmethod
     async def login_tv(user, url_name, url_password, captcha=''):
