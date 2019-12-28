@@ -14,6 +14,8 @@ sem = asyncio.Semaphore(3)
 class WebSession:
     __slots__ = ('var_session',)
 
+    DEFAULT_OK_STATUS_CODES = (200,)
+
     def __init__(self):
         self.var_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=4))
 
@@ -70,7 +72,9 @@ class WebSession:
         return await self.__orig_req(self.__receive_json, method, url, **kwargs)
 
     # 为 bilibili 这边加了一些东西的 request
-    async def __req(self, parse_rsp, method, url, **kwargs):
+    async def __req(self, parse_rsp, method, url, ok_status_codes=None, **kwargs):
+        if ok_status_codes is None:
+            ok_status_codes = self.DEFAULT_OK_STATUS_CODES
         async with sem:
             i = 0
             while True:
@@ -80,7 +84,7 @@ class WebSession:
                     await asyncio.sleep(0.75)
                 try:
                     async with self.var_session.request(method, url, **kwargs) as rsp:
-                        if rsp.status == 200:
+                        if rsp.status in ok_status_codes:
                             body = await parse_rsp(rsp)
                             if body:  # 有时候是 None 或空，直接屏蔽。read 或 text 类似，禁止返回空的东西
                                 return body
@@ -95,11 +99,9 @@ class WebSession:
                     # print('当前网络不好，正在重试，请反馈开发者!!!!')
                     print(sys.exc_info()[0], sys.exc_info()[1], url)
 
-    # is_login 后期移除
     async def request_json(self,
                            method,
                            url,
-                           is_login=False,
                            ctrl: Ctrl = DEFAULT_CTRL,
                            **kwargs) -> dict:
         while True:
@@ -114,10 +116,7 @@ class WebSession:
             elif json_rsp_type == JsonRspType.LOGOUT:
                 print('api提示没有登录')
                 print(body)
-                if not is_login:
-                    raise LogoutError(msg='提示没有登陆')
-                else:
-                    return body
+                raise LogoutError(msg='提示没有登陆')
 
     async def request_binary(self,
                              method,
